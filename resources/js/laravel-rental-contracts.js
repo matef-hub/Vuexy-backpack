@@ -1375,6 +1375,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
+  document.getElementById('landlord_entity_type').addEventListener('change', function () {
+
+    const type = this.value;
+
+    const nationalWrapper = document.getElementById('national_id_wrapper');
+    const commercialWrapper = document.getElementById('commercial_register_wrapper');
+
+    const nationalInput = document.getElementById('landlord_national_id');
+    const commercialInput = document.getElementById('commercial_register');
+
+    if (type === 'individual') {
+
+        nationalWrapper.classList.remove('d-none');
+        commercialWrapper.classList.add('d-none');
+
+        nationalInput.required = true;
+        commercialInput.required = false;
+
+        commercialInput.value = '';
+
+    } else {
+
+        nationalWrapper.classList.add('d-none');
+        commercialWrapper.classList.remove('d-none');
+
+        nationalInput.required = false;
+        commercialInput.required = true;
+
+        nationalInput.value = '';
+    }
+});
   window.addEventListener('beforeunload', clearPreviewObjectUrl);
 
   initLandlordNationalIdMask();
