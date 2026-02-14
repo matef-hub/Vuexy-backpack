@@ -127,6 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let tableInstance = null;
   let previewObjectUrl = '';
   let formSnapshot = null;
+  let contractNumberValue = '';
   let isSubmitting = false;
 
   const clearElementCache = () => {
@@ -141,7 +142,50 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const getFieldElement = name => getCachedElement(`[name="${name}"]`);
-  const getFieldValue = name => String(getFieldElement(name)?.value ?? '').trim();
+  const getFieldValue = name => {
+    const field = getFieldElement(name);
+    if (!field) return '';
+
+    if (field.type === 'radio') {
+      const checkedField = formElement.querySelector(`[name="${name}"]:checked`);
+      return String(checkedField?.value ?? '').trim();
+    }
+
+    if (field.type === 'checkbox') {
+      return field.checked ? String(field.value ?? '').trim() : '';
+    }
+
+    return String(field.value ?? '').trim();
+  };
+
+  const setFieldValue = (name, value) => {
+    const field = getFieldElement(name);
+    if (!field) return;
+
+    if (field.type === 'radio') {
+      const normalizedValue = String(value ?? '').trim();
+      const radios = formElement.querySelectorAll(`[name="${name}"]`);
+      let matched = false;
+      radios.forEach(radio => {
+        const shouldCheck = String(radio.value).trim() === normalizedValue;
+        radio.checked = shouldCheck;
+        if (shouldCheck) matched = true;
+      });
+      if (!matched) {
+        radios.forEach(radio => {
+          radio.checked = false;
+        });
+      }
+      return;
+    }
+
+    if (field.type === 'checkbox') {
+      field.checked = Boolean(value);
+      return;
+    }
+
+    field.value = value ?? '';
+  };
 
   const sanitizeLandlordNationalId = value => String(value ?? '').replace(/\D/g, '').slice(0, 14);
 
@@ -420,8 +464,9 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const updateContractNumberInput = value => {
+    contractNumberValue = safeText(value, '');
     if (!contractNumberInput) return;
-    contractNumberInput.value = safeText(value, '');
+    contractNumberInput.value = contractNumberValue;
     contractNumberInput.placeholder = 'سيتم التوليد تلقائيًا';
   };
 
@@ -514,7 +559,7 @@ document.addEventListener('DOMContentLoaded', () => {
   };
 
   const showExistingContractFile = (fileUrl, mimeType, fileName) => {
-    if (!contractFilePreview || !currentContractFileHint) return;
+    if (!contractFilePreview && !currentContractFileHint) return;
     clearPreviewObjectUrl();
 
     const preview = createFilePreview(fileUrl, mimeType, fileName, {
@@ -524,23 +569,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     if (!preview.cleanUrl) {
-      contractFilePreview.innerHTML = '<span class="text-body-secondary">لا يوجد مرفق.</span>';
-      currentContractFileHint.textContent = '';
-      currentContractFileHint.dataset.fileUrl = '';
-      currentContractFileHint.dataset.fileMime = '';
-      currentContractFileHint.dataset.fileName = '';
+      if (contractFilePreview) {
+        contractFilePreview.innerHTML = '<span class="text-body-secondary">لا يوجد مرفق.</span>';
+      }
+      if (currentContractFileHint) {
+        currentContractFileHint.textContent = '';
+        currentContractFileHint.dataset.fileUrl = '';
+        currentContractFileHint.dataset.fileMime = '';
+        currentContractFileHint.dataset.fileName = '';
+      }
       return;
     }
 
-    contractFilePreview.innerHTML = preview.html;
-    currentContractFileHint.textContent = preview.hint;
-    currentContractFileHint.dataset.fileUrl = preview.cleanUrl;
-    currentContractFileHint.dataset.fileMime = mimeType || '';
-    currentContractFileHint.dataset.fileName = safeText(fileName, '');
+    if (contractFilePreview) {
+      contractFilePreview.innerHTML = preview.html;
+    }
+    if (currentContractFileHint) {
+      currentContractFileHint.textContent = preview.hint;
+      currentContractFileHint.dataset.fileUrl = preview.cleanUrl;
+      currentContractFileHint.dataset.fileMime = mimeType || '';
+      currentContractFileHint.dataset.fileName = safeText(fileName, '');
+    }
   };
 
   const showSelectedContractFile = file => {
-    if (!contractFilePreview || !currentContractFileHint) return;
+    if (!contractFilePreview && !currentContractFileHint) return;
 
     if (!file) {
       clearContractFilePreview();
@@ -558,11 +611,15 @@ document.addEventListener('DOMContentLoaded', () => {
       showPlainTextForGeneric: true
     });
 
-    contractFilePreview.innerHTML = preview.html;
-    currentContractFileHint.textContent = preview.hint;
-    currentContractFileHint.dataset.fileUrl = '';
-    currentContractFileHint.dataset.fileMime = file.type || '';
-    currentContractFileHint.dataset.fileName = safeText(file.name, '');
+    if (contractFilePreview) {
+      contractFilePreview.innerHTML = preview.html;
+    }
+    if (currentContractFileHint) {
+      currentContractFileHint.textContent = preview.hint;
+      currentContractFileHint.dataset.fileUrl = '';
+      currentContractFileHint.dataset.fileMime = file.type || '';
+      currentContractFileHint.dataset.fileName = safeText(file.name, '');
+    }
 
     updateReview();
   };
@@ -570,7 +627,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const updateReview = () => {
     const currentStatus = getFieldValue('status');
     const reviewData = {
-      contract_number: safeText(contractNumberInput?.value, 'سيتم التوليد تلقائيًا بعد الحفظ'),
+      contract_number: safeText(contractNumberInput?.value || contractNumberValue, 'سيتم التوليد تلقائيًا بعد الحفظ'),
       landlord_name: safeText(getFieldValue('landlord_name')),
       landlord_entity_type: entityTypeLabels[getFieldValue('landlord_entity_type')] || '-',
       tenant_name: safeText(getFieldValue('tenant_name')),
@@ -616,6 +673,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const debouncedUpdateReview = debounce(updateReview, DEBOUNCE_DELAY_MS);
 
+  const autoResizeNotesTextarea = () => {
+    const notesField = getFieldElement('notes');
+    if (!notesField) return;
+    notesField.style.height = 'auto';
+    notesField.style.height = `${Math.max(notesField.scrollHeight, 40)}px`;
+  };
+
+  const initNotesAutoResize = () => {
+    const notesField = getFieldElement('notes');
+    if (!notesField) return;
+    notesField.addEventListener('input', autoResizeNotesTextarea);
+    autoResizeNotesTextarea();
+  };
+
   const saveFormState = () => {
     formSnapshot = new FormData(formElement);
   };
@@ -626,9 +697,10 @@ document.addEventListener('DOMContentLoaded', () => {
     for (const [key, value] of formSnapshot.entries()) {
       const field = getFieldElement(key);
       if (!field || field.type === 'file') continue;
-      field.value = value;
+      setFieldValue(key, value);
     }
 
+    autoResizeNotesTextarea();
     updateReview();
   };
 
@@ -638,10 +710,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const populateFormFields = (data, fieldNames) => {
     fieldNames.forEach(name => {
-      const field = getFieldElement(name);
-      if (field) {
-        field.value = data[name] ?? '';
-      }
+      setFieldValue(name, data[name] ?? '');
     });
   };
 
@@ -672,12 +741,10 @@ document.addEventListener('DOMContentLoaded', () => {
     idInput.value = '';
     updateContractNumberInput('');
 
-    const statusSelect = getFieldElement('status');
-    if (statusSelect) {
-      statusSelect.value = 'active';
-    }
+    setFieldValue('status', 'active');
 
     applyLandlordNationalIdMaskValue();
+    autoResizeNotesTextarea();
     clearFieldErrors();
     clearContractFilePreview();
     clearFormState();
@@ -703,6 +770,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     populateFormFields(data, editableFieldNames);
     applyLandlordNationalIdMaskValue();
+    autoResizeNotesTextarea();
     showExistingContractFile(data.contract_file_url, data.contract_mime, data.contract_original_name);
 
     if (formTitle) {
@@ -1375,40 +1443,61 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  document.getElementById('landlord_entity_type').addEventListener('change', function () {
+  const bindEntityTypeToggle = config => {
+    const selectElement = document.getElementById(config.selectId) || document.getElementById(config.fallbackSelectId);
+    if (!selectElement) return;
 
-    const type = this.value;
+    const updateVisibility = type => {
+      const nationalWrapper = document.getElementById(config.nationalWrapperId);
+      const commercialWrapper = document.getElementById(config.commercialWrapperId);
+      const nationalInput = document.getElementById(config.nationalInputId);
+      const commercialInput = document.getElementById(config.commercialInputId);
+      if (!nationalWrapper || !commercialWrapper || !nationalInput || !commercialInput) return;
 
-    const nationalWrapper = document.getElementById('national_id_wrapper');
-    const commercialWrapper = document.getElementById('commercial_register_wrapper');
-
-    const nationalInput = document.getElementById('landlord_national_id');
-    const commercialInput = document.getElementById('commercial_register');
-
-    if (type === 'individual') {
-
+      if (type === 'individual') {
         nationalWrapper.classList.remove('d-none');
         commercialWrapper.classList.add('d-none');
-
         nationalInput.required = true;
         commercialInput.required = false;
-
         commercialInput.value = '';
+        return;
+      }
 
-    } else {
+      nationalWrapper.classList.add('d-none');
+      commercialWrapper.classList.remove('d-none');
+      nationalInput.required = false;
+      commercialInput.required = true;
+      nationalInput.value = '';
+    };
 
-        nationalWrapper.classList.add('d-none');
-        commercialWrapper.classList.remove('d-none');
+    selectElement.addEventListener('change', function () {
+      updateVisibility(this.value);
+    });
 
-        nationalInput.required = false;
-        commercialInput.required = true;
+    updateVisibility(selectElement.value);
+  };
 
-        nationalInput.value = '';
-    }
-});
+  bindEntityTypeToggle({
+    selectId: 'landlord_entity_type',
+    fallbackSelectId: 'entity_type',
+    nationalWrapperId: 'national_id_wrapper',
+    commercialWrapperId: 'commercial_register_wrapper',
+    nationalInputId: 'landlord_national_id',
+    commercialInputId: 'commercial_register'
+  });
+
+  bindEntityTypeToggle({
+    selectId: 'tenant_entity_type',
+    fallbackSelectId: 'tenant_entity_type',
+    nationalWrapperId: 'tenant_national_id_wrapper',
+    commercialWrapperId: 'tenant_commercial_register_wrapper',
+    nationalInputId: 'tenant_national_id',
+    commercialInputId: 'tenant_commercial_register'
+  });
   window.addEventListener('beforeunload', clearPreviewObjectUrl);
 
   initLandlordNationalIdMask();
+  initNotesAutoResize();
 
   if (switchToFirstTabWithInvalidField()) {
     showFormPage();
