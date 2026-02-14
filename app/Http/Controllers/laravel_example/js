@@ -1,0 +1,830 @@
+/**
+ * Rental Contracts Ajax CRUD
+ */
+'use strict';
+
+document.addEventListener('DOMContentLoaded', function () {
+  const tableElement = document.querySelector('.datatables-rental-contracts');
+  const modalElement = document.getElementById('rentalContractModal');
+  const viewModalElement = document.getElementById('rentalContractViewModal');
+  const formElement = document.getElementById('rentalContractForm');
+  if (!tableElement || !modalElement || !formElement) return;
+
+  const csrfToken =
+    document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || window.csrfToken || '';
+  const routes = window.rentalContractsRoutes || {};
+  const listUrl = routes.list || `${baseUrl}rental-contracts/list`;
+  const storeUrl = routes.store || `${baseUrl}rental-contracts`;
+  const showBaseUrl = routes.showBase || `${baseUrl}rental-contracts`;
+  const editBaseUrl = routes.editBase || `${baseUrl}rental-contracts`;
+  const deleteBaseUrl = routes.deleteBase || `${baseUrl}rental-contracts`;
+
+  const statusLabels = { draft: 'مسودة', active: 'نشط', expired: 'منتهي', terminated: 'منتهي بالفسخ' };
+  const statusBadge = { draft: 'secondary', active: 'success', expired: 'warning', terminated: 'danger' };
+  const entityTypeLabels = { individual: 'فرد', company: 'شركة', sole_proprietorship: 'مؤسسة فردية' };
+
+  const modalInstance = new bootstrap.Modal(modalElement);
+  const viewModalInstance = viewModalElement ? new bootstrap.Modal(viewModalElement) : null;
+  const stepperElement = document.getElementById('rentalContractsStepper');
+  const stepper = stepperElement ? new Stepper(stepperElement, { linear: false, animation: true }) : null;
+
+  const modalTitle = document.getElementById('rentalContractModalLabel');
+  const addButton = document.getElementById('addRentalContractBtn');
+  const idInput = document.getElementById('rental_contract_id');
+  const contractNumberInput = document.getElementById('contract_number_display');
+  const contractFileInput = document.getElementById('contract_file');
+  const contractFilePreview = document.getElementById('contractFilePreview');
+  const currentContractFileHint = document.getElementById('currentContractFileHint');
+  const prevButton = document.getElementById('rentalPrevBtn');
+  const nextButton = document.getElementById('rentalNextBtn');
+  const saveButton = document.getElementById('rentalSaveBtn');
+  const reviewElements = document.querySelectorAll('[data-review]');
+  const reviewStatusElement = formElement.querySelector('.review-status-badge[data-review="status"]');
+  const columnsModalEl = document.getElementById('rentalContractsColumnsModal');
+  const columnsChecklistElement = document.getElementById('rentalColumnsChecklist');
+  const applyColumnsButton = document.getElementById('applyRentalColumnsBtn');
+  const resetColumnsButton = document.getElementById('resetRentalColumnsBtn');
+  const columnsModal = columnsModalEl ? new bootstrap.Modal(columnsModalEl) : null;
+
+  const columnsMeta = [
+    { idx: 0, key: 'id', label: 'م', defaultVisible: false, exportable: true },
+    { idx: 1, key: 'contract_number', label: 'رقم العقد', defaultVisible: true, exportable: true },
+    { idx: 2, key: 'landlord_name', label: 'المؤجر', defaultVisible: true, exportable: true },
+    { idx: 3, key: 'tenant_name', label: 'المستأجر', defaultVisible: true, exportable: true },
+    { idx: 4, key: 'unit_number', label: 'رقم الوحدة', defaultVisible: true, exportable: true },
+    { idx: 5, key: 'lease_start_date', label: 'بداية العقد', defaultVisible: true, exportable: true },
+    { idx: 6, key: 'lease_end_date', label: 'نهاية العقد', defaultVisible: false, exportable: true },
+    { idx: 7, key: 'monthly_rent', label: 'الإيجار الشهري', defaultVisible: true, exportable: true },
+    { idx: 8, key: 'contract_file', label: 'المرفق', defaultVisible: false, exportable: true },
+    { idx: 9, key: 'status', label: 'الحالة', defaultVisible: true, exportable: true },
+    { idx: 10, key: 'action', label: 'إجراءات', defaultVisible: true, exportable: false }
+  ];
+  const columnsStorageKey = 'rental_contracts_visible_columns';
+  const visibleExportColumnsSelector = ':visible:not(.no-export)';
+
+  const viewElements = {
+    contractNumber: document.getElementById('view_contract_number'),
+    status: document.getElementById('view_status'),
+    landlordName: document.getElementById('view_landlord_name'),
+    landlordMeta: document.getElementById('view_landlord_meta'),
+    tenantName: document.getElementById('view_tenant_name'),
+    tenantMeta: document.getElementById('view_tenant_meta'),
+    unitNumber: document.getElementById('view_unit_number'),
+    unitArea: document.getElementById('view_unit_area'),
+    unitAddress: document.getElementById('view_unit_address'),
+    leaseStartDate: document.getElementById('view_lease_start_date'),
+    leaseEndDate: document.getElementById('view_lease_end_date'),
+    leaseDurationMonths: document.getElementById('view_lease_duration_months'),
+    monthlyRent: document.getElementById('view_monthly_rent'),
+    securityDeposit: document.getElementById('view_security_deposit'),
+    contractFile: document.getElementById('view_contract_file'),
+    notes: document.getElementById('view_notes')
+  };
+
+  let tableInstance = null;
+  let currentStep = 1;
+  let previewObjectUrl = '';
+
+  const safeText = (value, fallback = '-') => (value === null || value === undefined || value === '' ? fallback : String(value));
+  const stripHtml = data => {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = String(data ?? '');
+    return (tmp.textContent || tmp.innerText || '').trim();
+  };
+  const escapeHtml = text => safeText(text, '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' }[ch] || ch));
+  const formatMoney = value => {
+    if (value === null || value === undefined || value === '') return '-';
+    const num = Number(value);
+    return Number.isNaN(num) ? safeText(value) : num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  };
+
+  const getDefaultVisibleColumns = () =>
+    new Set(
+      columnsMeta
+        .filter(column => column.key !== 'action' && column.defaultVisible)
+        .map(column => column.idx)
+    );
+
+  const getStoredVisibleColumns = () => {
+    try {
+      const raw = localStorage.getItem(columnsStorageKey);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return null;
+      const allowedIndexes = new Set(columnsMeta.filter(column => column.key !== 'action').map(column => column.idx));
+      const visibleIndexes = parsed
+        .map(value => Number(value))
+        .filter(value => Number.isInteger(value) && allowedIndexes.has(value));
+      return new Set(visibleIndexes);
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const saveVisibleColumns = visibleSet => {
+    try {
+      localStorage.setItem(columnsStorageKey, JSON.stringify(Array.from(visibleSet)));
+    } catch (error) {
+      // Ignore storage write failures.
+    }
+  };
+
+  const clearStoredVisibleColumns = () => {
+    try {
+      localStorage.removeItem(columnsStorageKey);
+    } catch (error) {
+      // Ignore storage remove failures.
+    }
+  };
+
+  const applyColumnsVisibility = (dt, visibleSet) => {
+    if (!dt) return;
+    columnsMeta.forEach(column => {
+      const shouldBeVisible = column.key === 'action' ? true : visibleSet.has(column.idx);
+      dt.column(column.idx).visible(shouldBeVisible, false);
+    });
+    dt.columns.adjust().draw(false);
+  };
+
+  const buildColumnsChecklist = () => {
+    if (!columnsChecklistElement) return;
+    columnsChecklistElement.innerHTML = columnsMeta
+      .filter(column => column.key !== 'action')
+      .map(
+        column => `
+          <div class="col-12 col-sm-6">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" id="rental-col-${column.idx}" data-col="${column.idx}">
+              <label class="form-check-label d-flex align-items-center justify-content-between w-100 gap-2" for="rental-col-${column.idx}">
+                <span>${escapeHtml(column.label)}</span>
+                <span class="badge bg-label-secondary">${escapeHtml(column.key)}</span>
+              </label>
+            </div>
+          </div>`
+      )
+      .join('');
+  };
+
+  const syncChecklistFromTable = dt => {
+    if (!columnsChecklistElement || !dt) return;
+    columnsChecklistElement.querySelectorAll('input[data-col]').forEach(input => {
+      const columnIndex = Number(input.getAttribute('data-col'));
+      input.checked = dt.column(columnIndex).visible();
+    });
+  };
+
+  const updateWizardActions = () => {
+    const onFirst = currentStep <= 1;
+    const onReview = currentStep >= 3;
+    prevButton?.classList.toggle('d-none', onFirst);
+    nextButton?.classList.toggle('d-none', onReview);
+    saveButton?.classList.toggle('d-none', !onReview);
+  };
+
+  const goToStep = stepNumber => {
+    currentStep = Math.min(3, Math.max(1, stepNumber));
+    if (stepper) stepper.to(currentStep);
+    updateWizardActions();
+  };
+
+  const clearFieldErrors = () => {
+    formElement.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+    formElement.querySelectorAll('.invalid-feedback.dynamic-invalid').forEach(el => el.remove());
+  };
+
+  const setFieldError = (fieldName, message) => {
+    const field = formElement.querySelector(`[name="${fieldName}"]`);
+    if (!field) return;
+    field.classList.add('is-invalid');
+    let feedback = field.parentElement.querySelector('.invalid-feedback.dynamic-invalid');
+    if (!feedback) {
+      feedback = document.createElement('div');
+      feedback.className = 'invalid-feedback dynamic-invalid';
+      field.parentElement.appendChild(feedback);
+    }
+    feedback.textContent = Array.isArray(message) ? message[0] : message;
+  };
+
+  const showAlert = (icon, title, text) =>
+    Swal.fire({
+      icon,
+      title,
+      text,
+      customClass: { confirmButton: 'btn btn-primary' },
+      buttonsStyling: false
+    });
+
+  const hasSelectedRows = dt => dt && dt.rows({ selected: true }).count() > 0;
+  const requireSelectedRowsForExport = dt => {
+    if (hasSelectedRows(dt)) return true;
+    showAlert('error', 'لا توجد صفوف محددة', 'حدد صفاً واحداً على الأقل قبل التصدير.');
+    return false;
+  };
+  const runDefaultExportAction = (buttonType, context, e, dt, button, config) => {
+    const action = $.fn?.dataTable?.ext?.buttons?.[buttonType]?.action;
+    if (typeof action === 'function') action.call(context, e, dt, button, config);
+  };
+
+  const clearPreviewObjectUrl = () => {
+    if (!previewObjectUrl) return;
+    URL.revokeObjectURL(previewObjectUrl);
+    previewObjectUrl = '';
+  };
+
+  const clearContractFilePreview = () => {
+    clearPreviewObjectUrl();
+    contractFilePreview.innerHTML = '<span class="text-body-secondary">لم يتم اختيار ملف.</span>';
+    currentContractFileHint.textContent = '';
+    currentContractFileHint.dataset.fileUrl = '';
+    currentContractFileHint.dataset.fileMime = '';
+    currentContractFileHint.dataset.fileName = '';
+  };
+
+  const showExistingContractFile = (fileUrl, mimeType, fileName) => {
+    clearPreviewObjectUrl();
+    if (!fileUrl) return clearContractFilePreview();
+    currentContractFileHint.textContent = `المرفق الحالي: ${safeText(fileName)}`;
+    currentContractFileHint.dataset.fileUrl = fileUrl;
+    currentContractFileHint.dataset.fileMime = mimeType || '';
+    currentContractFileHint.dataset.fileName = fileName || '';
+    if ((mimeType || '').includes('pdf')) {
+      contractFilePreview.innerHTML = `<a href="${fileUrl}" target="_blank" class="btn btn-label-danger btn-sm"><i class="icon-base ti tabler-file-type-pdf me-1"></i> فتح PDF</a>`;
+      return;
+    }
+    if ((mimeType || '').startsWith('image/')) {
+      contractFilePreview.innerHTML = `<img src="${fileUrl}" alt="${safeText(fileName)}">`;
+      return;
+    }
+    contractFilePreview.innerHTML = `<a href="${fileUrl}" target="_blank" class="btn btn-label-secondary btn-sm"><i class="icon-base ti tabler-file me-1"></i> فتح المرفق</a>`;
+  };
+
+  const showSelectedContractFile = file => {
+    if (!file) {
+      clearContractFilePreview();
+      updateReview();
+      return;
+    }
+    clearPreviewObjectUrl();
+    previewObjectUrl = URL.createObjectURL(file);
+    currentContractFileHint.textContent = `مرفق جديد: ${safeText(file.name)}`;
+    currentContractFileHint.dataset.fileUrl = '';
+    currentContractFileHint.dataset.fileMime = file.type || '';
+    currentContractFileHint.dataset.fileName = file.name || '';
+    if ((file.type || '').includes('pdf')) {
+      contractFilePreview.innerHTML = `<a href="${previewObjectUrl}" target="_blank" class="btn btn-label-danger btn-sm"><i class="icon-base ti tabler-file-type-pdf me-1"></i> معاينة PDF</a>`;
+      updateReview();
+      return;
+    }
+    if ((file.type || '').startsWith('image/')) {
+      contractFilePreview.innerHTML = `<img src="${previewObjectUrl}" alt="${safeText(file.name)}">`;
+      updateReview();
+      return;
+    }
+    contractFilePreview.innerHTML = `<span class="text-body-secondary">${safeText(file.name)}</span>`;
+    updateReview();
+  };
+
+  const validateStepOne = () => {
+    let valid = true;
+    clearFieldErrors();
+    ['landlord_name', 'landlord_entity_type', 'tenant_name', 'tenant_entity_type', 'unit_number', 'unit_address'].forEach(name => {
+      const element = formElement.querySelector(`[name="${name}"]`);
+      if (!element || String(element.value).trim() !== '') return;
+      valid = false;
+      setFieldError(name, 'هذا الحقل مطلوب.');
+    });
+    const unitArea = formElement.querySelector('[name="unit_area_sqm"]')?.value || '';
+    if (unitArea !== '' && Number(unitArea) < 0) {
+      valid = false;
+      setFieldError('unit_area_sqm', 'المساحة يجب أن تكون رقمًا موجبًا أو صفر.');
+    }
+    const duration = formElement.querySelector('[name="lease_duration_months"]')?.value || '';
+    if (duration !== '' && Number(duration) < 1) {
+      valid = false;
+      setFieldError('lease_duration_months', 'مدة الإيجار يجب أن تكون شهرًا واحدًا على الأقل.');
+    }
+    if (!valid) showAlert('error', 'تحقق من البيانات', 'يرجى استكمال بيانات الأطراف والوحدة.');
+    return valid;
+  };
+
+  const validateStepTwo = () => {
+    let valid = true;
+    ['lease_start_date', 'lease_end_date', 'monthly_rent', 'status'].forEach(name => {
+      const element = formElement.querySelector(`[name="${name}"]`);
+      if (!element || String(element.value).trim() !== '') return;
+      valid = false;
+      setFieldError(name, 'هذا الحقل مطلوب.');
+    });
+    const startDate = formElement.querySelector('[name="lease_start_date"]')?.value || '';
+    const endDate = formElement.querySelector('[name="lease_end_date"]')?.value || '';
+    if (startDate && endDate && endDate < startDate) {
+      valid = false;
+      setFieldError('lease_end_date', 'تاريخ نهاية العقد يجب أن يكون بعد أو يساوي تاريخ بداية العقد.');
+    }
+    const monthlyRent = formElement.querySelector('[name="monthly_rent"]')?.value || '';
+    if (monthlyRent !== '' && Number(monthlyRent) < 0) {
+      valid = false;
+      setFieldError('monthly_rent', 'الإيجار الشهري يجب أن يكون رقمًا موجبًا أو صفر.');
+    }
+    const securityDeposit = formElement.querySelector('[name="security_deposit"]')?.value || '';
+    if (securityDeposit !== '' && Number(securityDeposit) < 0) {
+      valid = false;
+      setFieldError('security_deposit', 'مبلغ التأمين يجب أن يكون رقمًا موجبًا أو صفر.');
+    }
+    if (!valid) showAlert('error', 'تحقق من البيانات', 'يرجى استكمال بيانات العقد والدفعات بشكل صحيح.');
+    return valid;
+  };
+
+  const updateReview = () => {
+    const formData = new FormData(formElement);
+    const reviewData = {
+      contract_number: safeText(contractNumberInput?.value, 'سيتم التوليد تلقائيًا بعد الحفظ'),
+      landlord_name: safeText(formData.get('landlord_name')),
+      landlord_entity_type: entityTypeLabels[formData.get('landlord_entity_type')] || '-',
+      tenant_name: safeText(formData.get('tenant_name')),
+      tenant_entity_type: entityTypeLabels[formData.get('tenant_entity_type')] || '-',
+      unit_number: safeText(formData.get('unit_number')),
+      lease_start_date: safeText(formData.get('lease_start_date')),
+      lease_end_date: safeText(formData.get('lease_end_date')),
+      monthly_rent: formatMoney(formData.get('monthly_rent')),
+      contract_file: '-',
+      status: statusLabels[formData.get('status')] || '-',
+      notes: safeText(formData.get('notes'))
+    };
+    if (contractFileInput.files && contractFileInput.files.length > 0) reviewData.contract_file = safeText(contractFileInput.files[0].name);
+    else if (currentContractFileHint.dataset.fileName) reviewData.contract_file = safeText(currentContractFileHint.dataset.fileName);
+    reviewElements.forEach(element => {
+      const key = element.dataset.review;
+      element.textContent = reviewData[key] || '-';
+    });
+    if (reviewStatusElement) {
+      const currentStatus = formData.get('status');
+      reviewStatusElement.className = `badge review-status-badge bg-label-${statusBadge[currentStatus] || 'secondary'}`;
+    }
+  };
+
+  const resetModalForCreate = () => {
+    formElement.reset();
+    idInput.value = '';
+    if (contractNumberInput) {
+      contractNumberInput.value = '';
+      contractNumberInput.placeholder = 'سيتم التوليد تلقائيًا';
+    }
+    const statusSelect = formElement.querySelector('[name="status"]');
+    if (statusSelect) statusSelect.value = 'active';
+    clearFieldErrors();
+    clearContractFilePreview();
+    modalTitle.textContent = 'إضافة عقد جديد';
+    updateReview();
+    goToStep(1);
+  };
+
+  const fillModalForEdit = data => {
+    formElement.reset();
+    clearFieldErrors();
+    idInput.value = data.id || '';
+    if (contractNumberInput) {
+      contractNumberInput.value = data.contract_number || '';
+      contractNumberInput.placeholder = 'سيتم التوليد تلقائيًا';
+    }
+    [
+      'landlord_name',
+      'landlord_entity_type',
+      'landlord_national_id',
+      'landlord_address',
+      'tenant_name',
+      'tenant_entity_type',
+      'tenant_national_id',
+      'tenant_address',
+      'unit_number',
+      'unit_address',
+      'unit_area_sqm',
+      'lease_duration_months',
+      'lease_start_date',
+      'lease_end_date',
+      'monthly_rent',
+      'security_deposit',
+      'status',
+      'notes'
+    ].forEach(name => {
+      const field = formElement.querySelector(`[name="${name}"]`);
+      if (field) field.value = data[name] ?? '';
+    });
+    showExistingContractFile(data.contract_file_url, data.contract_mime, data.contract_original_name);
+    modalTitle.textContent = `تعديل العقد #${safeText(data.contract_number)}`;
+    updateReview();
+    goToStep(1);
+  };
+
+  const renderStatusCell = status => `<span class="badge bg-label-${statusBadge[status] || 'secondary'}">${statusLabels[status] || status}</span>`;
+  const renderFileCell = row => {
+    if (!row.contract_file_url) return '<span class="text-body-secondary">-</span>';
+    if ((row.contract_mime || '').startsWith('image/'))
+      return `<img src="${row.contract_file_url}" alt="${safeText(row.contract_original_name)}" class="rounded" width="40" height="40" style="object-fit: cover;">`;
+    if ((row.contract_mime || '').includes('pdf'))
+      return `<a href="${row.contract_file_url}" target="_blank" class="btn btn-sm btn-label-danger"><i class="icon-base ti tabler-file-type-pdf me-1"></i> PDF</a>`;
+    return `<a href="${row.contract_file_url}" target="_blank" class="btn btn-sm btn-label-secondary"><i class="icon-base ti tabler-file me-1"></i> فتح</a>`;
+  };
+
+  const setViewFilePreview = (fileUrl, mimeType, fileName) => {
+    if (!viewElements.contractFile) return;
+    if (!fileUrl) {
+      viewElements.contractFile.innerHTML = '<span class="text-body-secondary">لا يوجد مرفق.</span>';
+      return;
+    }
+    if ((mimeType || '').startsWith('image/')) {
+      viewElements.contractFile.innerHTML = `<img src="${fileUrl}" alt="${safeText(fileName)}">`;
+      return;
+    }
+    if ((mimeType || '').includes('pdf')) {
+      viewElements.contractFile.innerHTML = `<a href="${fileUrl}" target="_blank" class="btn btn-label-danger btn-sm"><i class="icon-base ti tabler-file-type-pdf me-1"></i> ${safeText(fileName, 'فتح PDF')}</a>`;
+      return;
+    }
+    viewElements.contractFile.innerHTML = `<a href="${fileUrl}" target="_blank" class="btn btn-label-secondary btn-sm"><i class="icon-base ti tabler-file me-1"></i> ${safeText(fileName, 'فتح المرفق')}</a>`;
+  };
+
+  const fillViewModal = data => {
+    if (!viewModalInstance) return;
+    const landlordMeta = [entityTypeLabels[data.landlord_entity_type] || '-', safeText(data.landlord_national_id), safeText(data.landlord_address)].join(' | ');
+    const tenantMeta = [entityTypeLabels[data.tenant_entity_type] || '-', safeText(data.tenant_national_id), safeText(data.tenant_address)].join(' | ');
+    if (viewElements.contractNumber) viewElements.contractNumber.textContent = safeText(data.contract_number);
+    if (viewElements.status) viewElements.status.innerHTML = renderStatusCell(data.status);
+    if (viewElements.landlordName) viewElements.landlordName.textContent = safeText(data.landlord_name);
+    if (viewElements.landlordMeta) viewElements.landlordMeta.textContent = landlordMeta;
+    if (viewElements.tenantName) viewElements.tenantName.textContent = safeText(data.tenant_name);
+    if (viewElements.tenantMeta) viewElements.tenantMeta.textContent = tenantMeta;
+    if (viewElements.unitNumber) viewElements.unitNumber.textContent = safeText(data.unit_number);
+    if (viewElements.unitArea) viewElements.unitArea.textContent = data.unit_area_sqm ? `${safeText(data.unit_area_sqm)} م²` : '-';
+    if (viewElements.unitAddress) viewElements.unitAddress.textContent = safeText(data.unit_address);
+    if (viewElements.leaseStartDate) viewElements.leaseStartDate.textContent = safeText(data.lease_start_date);
+    if (viewElements.leaseEndDate) viewElements.leaseEndDate.textContent = safeText(data.lease_end_date);
+    if (viewElements.leaseDurationMonths)
+      viewElements.leaseDurationMonths.textContent = data.lease_duration_months ? `${safeText(data.lease_duration_months)} شهر` : '-';
+    if (viewElements.monthlyRent) viewElements.monthlyRent.textContent = formatMoney(data.monthly_rent);
+    if (viewElements.securityDeposit) viewElements.securityDeposit.textContent = formatMoney(data.security_deposit);
+    if (viewElements.notes) viewElements.notes.textContent = safeText(data.notes);
+    setViewFilePreview(data.contract_file_url, data.contract_mime, data.contract_original_name);
+  };
+
+  const exportToWord = dt => {
+    if (!requireSelectedRowsForExport(dt)) return;
+    const exportIndexes = dt
+      .columns(':visible')
+      .indexes()
+      .toArray()
+      .filter(index => !dt.column(index).header().classList.contains('no-export'));
+    if (!exportIndexes.length) {
+      showAlert('error', 'لا توجد أعمدة للتصدير', 'اختر أعمدة أولاً.');
+      return;
+    }
+    const exportData = dt.buttons.exportData({
+      columns: exportIndexes,
+      modifier: { selected: true },
+      format: { body: data => stripHtml(data) }
+    });
+    let tableHtml = '<table border="1" style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;"><thead><tr>';
+    exportData.header.forEach(h => (tableHtml += `<th style="padding:8px;background:#f5f5f5;text-align:right;">${escapeHtml(h)}</th>`));
+    tableHtml += '</tr></thead><tbody>';
+    exportData.body.forEach(row => {
+      tableHtml += '<tr>';
+      row.forEach(cell => (tableHtml += `<td style="padding:8px;text-align:right;">${escapeHtml(cell)}</td>`));
+      tableHtml += '</tr>';
+    });
+    tableHtml += '</tbody></table>';
+    const html = `<html><head><meta charset="UTF-8"><title>Rental Contracts</title></head><body dir="rtl"><h3 style="font-family:Arial,sans-serif;">تقرير عقود الإيجار</h3>${tableHtml}</body></html>`;
+    const blob = new Blob(['\ufeff', html], { type: 'application/msword;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rental-contracts-${new Date().toISOString().slice(0, 10)}.doc`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const initTooltips = () => document.querySelectorAll('[data-bs-toggle="tooltip"]').forEach(el => new bootstrap.Tooltip(el));
+
+  tableInstance = new DataTable(tableElement, {
+    processing: true,
+    serverSide: true,
+    rowId: 'id',
+    select: {
+      style: 'multi',
+      selector: 'td:not(.no-select)'
+    },
+    ajax: {
+      url: listUrl,
+      dataSrc: json => {
+        if (typeof json.recordsTotal !== 'number') json.recordsTotal = 0;
+        if (typeof json.recordsFiltered !== 'number') json.recordsFiltered = 0;
+        return Array.isArray(json.data) ? json.data : [];
+      }
+    },
+    columns: [
+      { data: 'id' },
+      { data: 'contract_number' },
+      { data: 'landlord_name' },
+      { data: 'tenant_name' },
+      { data: 'unit_number' },
+      { data: 'lease_start_date' },
+      { data: 'lease_end_date' },
+      { data: 'monthly_rent' },
+      { data: 'contract_file' },
+      { data: 'status' },
+      { data: 'action' }
+    ],
+    columnDefs: [
+      { targets: [0, 1, 4, 5, 6], className: 'text-nowrap' },
+      { targets: 7, className: 'text-nowrap', render: data => formatMoney(data) },
+      { targets: 8, orderable: false, searchable: false, className: 'text-nowrap', render: (d, t, row) => renderFileCell(row) },
+      { targets: 9, render: data => renderStatusCell(data) },
+      {
+        targets: 10,
+        orderable: false,
+        searchable: false,
+        className: 'text-nowrap no-export no-select',
+        render: (d, t, row) => `
+          <div class="dropdown">
+            <button type="button" class="btn btn-sm btn-icon btn-label-secondary dropdown-toggle hide-arrow" data-bs-toggle="dropdown" aria-expanded="false">
+              <i class="icon-base ti tabler-dots-vertical icon-20px"></i>
+            </button>
+            <div class="dropdown-menu dropdown-menu-end">
+              <button type="button" class="dropdown-item d-flex align-items-center gap-2 view-record" data-id="${row.id}">
+                <i class="icon-base ti tabler-eye text-info"></i>
+                <span>عرض</span>
+              </button>
+              <button type="button" class="dropdown-item d-flex align-items-center gap-2 edit-record" data-id="${row.id}">
+                <i class="icon-base ti tabler-edit text-primary"></i>
+                <span>تعديل</span>
+              </button>
+              <button type="button" class="dropdown-item d-flex align-items-center gap-2 delete-record" data-id="${row.id}">
+                <i class="icon-base ti tabler-trash text-danger"></i>
+                <span>حذف</span>
+              </button>
+            </div>
+          </div>`
+      }
+    ],
+    dom:
+      '<"row mx-1"' +
+      '<"col-sm-12 col-md-6 d-flex align-items-center justify-content-start gap-2 flex-wrap dt-action-buttons"B>' +
+      '<"col-sm-12 col-md-6 d-flex align-items-center justify-content-end"f>' +
+      '>' +
+      '<"row mx-1"<"col-sm-12"tr>>' +
+      '<"row mx-1"' +
+      '<"col-sm-12 col-md-6"i>' +
+      '<"col-sm-12 col-md-6"p>' +
+      '>',
+    buttons: [
+      {
+        extend: 'collection',
+        className: 'btn btn-label-primary btn-sm dropdown-toggle',
+        text: '<i class="icon-base ti tabler-download me-1"></i><span>تصدير</span>',
+        buttons: [
+          { text: '<i class="icon-base ti tabler-file-type-doc me-2"></i> Word', className: 'dropdown-item', action: (e, dt) => exportToWord(dt) },
+          {
+            extend: 'csv',
+            text: '<i class="icon-base ti tabler-file-type-csv me-2"></i> CSV',
+            className: 'dropdown-item',
+            exportOptions: {
+              columns: visibleExportColumnsSelector,
+              modifier: { selected: true },
+              format: { body: data => stripHtml(data) }
+            },
+            action: function (e, dt, button, config) {
+              if (!requireSelectedRowsForExport(dt)) return;
+              runDefaultExportAction('csvHtml5', this, e, dt, button, config);
+            }
+          },
+          {
+            extend: 'pdf',
+            text: '<i class="icon-base ti tabler-file-type-pdf me-2"></i> PDF',
+            className: 'dropdown-item',
+            exportOptions: {
+              columns: visibleExportColumnsSelector,
+              modifier: { selected: true },
+              format: { body: data => stripHtml(data) }
+            },
+            action: function (e, dt, button, config) {
+              if (!requireSelectedRowsForExport(dt)) return;
+              runDefaultExportAction('pdfHtml5', this, e, dt, button, config);
+            }
+          },
+          {
+            extend: 'print',
+            text: '<i class="icon-base ti tabler-printer me-2"></i> Print',
+            className: 'dropdown-item',
+            exportOptions: {
+              columns: visibleExportColumnsSelector,
+              modifier: { selected: true },
+              format: { body: data => stripHtml(data) }
+            },
+            action: function (e, dt, button, config) {
+              if (!requireSelectedRowsForExport(dt)) return;
+              runDefaultExportAction('print', this, e, dt, button, config);
+            }
+          }
+        ]
+      },
+      {
+        className: 'btn btn-label-secondary btn-sm',
+        text: '<i class="icon-base ti tabler-columns me-1"></i><span>الأعمدة</span>',
+        action: () => {
+          if (!columnsModal) return;
+          syncChecklistFromTable(tableInstance);
+          columnsModal.show();
+        }
+      },
+      {
+        className: 'btn btn-label-secondary btn-sm',
+        text: '<i class="icon-base ti tabler-checks me-1"></i><span>تحديد الكل</span>',
+        action: (e, dt) => dt.rows({ page: 'current' }).select()
+      },
+      {
+        className: 'btn btn-label-secondary btn-sm',
+        text: '<i class="icon-base ti tabler-square-x me-1"></i><span>إلغاء</span>',
+        action: (e, dt) => dt.rows({ selected: true }).deselect()
+      }
+    ],
+    order: [[0, 'desc']],
+    displayLength: 10,
+    language: {
+      search: '',
+      searchPlaceholder: 'بحث...',
+      paginate: {
+        first: '<i class="icon-base ti tabler-chevrons-left scaleX-n1-rtl icon-18px"></i>',
+        last: '<i class="icon-base ti tabler-chevrons-right scaleX-n1-rtl icon-18px"></i>',
+        next: '<i class="icon-base ti tabler-chevron-right scaleX-n1-rtl icon-18px"></i>',
+        previous: '<i class="icon-base ti tabler-chevron-left scaleX-n1-rtl icon-18px"></i>'
+      }
+    },
+    drawCallback: () => initTooltips()
+  });
+
+  buildColumnsChecklist();
+  const storedVisibleColumns = getStoredVisibleColumns();
+  const initialVisibleColumns = storedVisibleColumns || getDefaultVisibleColumns();
+  applyColumnsVisibility(tableInstance, initialVisibleColumns);
+  syncChecklistFromTable(tableInstance);
+
+  columnsModalEl?.addEventListener('shown.bs.modal', () => {
+    syncChecklistFromTable(tableInstance);
+  });
+
+  applyColumnsButton?.addEventListener('click', () => {
+    const selectedVisibleColumns = new Set();
+    columnsChecklistElement?.querySelectorAll('input[data-col]:checked').forEach(input => {
+      const columnIndex = Number(input.getAttribute('data-col'));
+      if (Number.isInteger(columnIndex)) selectedVisibleColumns.add(columnIndex);
+    });
+    applyColumnsVisibility(tableInstance, selectedVisibleColumns);
+    saveVisibleColumns(selectedVisibleColumns);
+    syncChecklistFromTable(tableInstance);
+    columnsModal?.hide();
+  });
+
+  resetColumnsButton?.addEventListener('click', () => {
+    clearStoredVisibleColumns();
+    const defaultVisibleColumns = getDefaultVisibleColumns();
+    applyColumnsVisibility(tableInstance, defaultVisibleColumns);
+    syncChecklistFromTable(tableInstance);
+  });
+
+  addButton?.addEventListener('click', () => {
+    resetModalForCreate();
+    modalInstance.show();
+  });
+
+  tableElement.addEventListener('click', function (event) {
+    const viewButton = event.target.closest('.view-record');
+    if (viewButton) {
+      const id = viewButton.getAttribute('data-id');
+      fetch(`${showBaseUrl}/${id}`, { headers: { Accept: 'application/json' } })
+        .then(async response => {
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.message || 'فشل تحميل بيانات العرض.');
+          return data;
+        })
+        .then(data => {
+          fillViewModal(data);
+          viewModalInstance?.show();
+        })
+        .catch(error => showAlert('error', 'خطأ', error.message || 'تعذر تحميل بيانات العقد.'));
+      return;
+    }
+
+    const editButton = event.target.closest('.edit-record');
+    if (editButton) {
+      const id = editButton.getAttribute('data-id');
+      fetch(`${editBaseUrl}/${id}/edit`, { headers: { Accept: 'application/json' } })
+        .then(async response => {
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.message || 'فشل تحميل البيانات.');
+          return data;
+        })
+        .then(data => {
+          fillModalForEdit(data);
+          modalInstance.show();
+        })
+        .catch(error => showAlert('error', 'خطأ', error.message || 'تعذر تحميل بيانات العقد.'));
+      return;
+    }
+
+    const deleteButton = event.target.closest('.delete-record');
+    if (!deleteButton) return;
+    const id = deleteButton.getAttribute('data-id');
+    Swal.fire({
+      title: 'تأكيد الحذف',
+      text: 'هل أنت متأكد من حذف هذا العقد؟ لا يمكن التراجع بعد ذلك.',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'نعم، احذف',
+      cancelButtonText: 'إلغاء',
+      customClass: { confirmButton: 'btn btn-danger me-2', cancelButton: 'btn btn-label-secondary' },
+      buttonsStyling: false
+    }).then(result => {
+      if (!result.isConfirmed) return;
+      fetch(`${deleteBaseUrl}/${id}`, { method: 'DELETE', headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' } })
+        .then(async response => {
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.message || 'فشل حذف العقد.');
+          return data;
+        })
+        .then(data => {
+          tableInstance.ajax.reload(null, false);
+          showAlert('success', 'تم الحذف', data.message || 'تم حذف العقد بنجاح.');
+        })
+        .catch(error => showAlert('error', 'خطأ', error.message || 'تعذر حذف العقد.'));
+    });
+  });
+
+  formElement.addEventListener('submit', function (event) {
+    event.preventDefault();
+    clearFieldErrors();
+    if (!validateStepOne()) {
+      if (stepper) stepper.to(1);
+      return;
+    }
+    if (!validateStepTwo()) {
+      if (stepper) stepper.to(2);
+      return;
+    }
+    const formData = new FormData(formElement);
+    if (saveButton) saveButton.disabled = true;
+    fetch(storeUrl, { method: 'POST', headers: { 'X-CSRF-TOKEN': csrfToken, Accept: 'application/json' }, body: formData })
+      .then(async response => {
+        const data = await response.json();
+        if (response.status === 422) {
+          const errors = data.errors || {};
+          Object.keys(errors).forEach(field => setFieldError(field, errors[field]));
+          const firstField = Object.keys(errors)[0];
+          const firstMessage = firstField ? errors[firstField][0] : data.message;
+          throw new Error(firstMessage || 'فشل التحقق من صحة البيانات.');
+        }
+        if (!response.ok) throw new Error(data.message || 'حدث خطأ أثناء الحفظ.');
+        return data;
+      })
+      .then(data => {
+        modalInstance.hide();
+        tableInstance.ajax.reload(null, false);
+        showAlert('success', 'تم بنجاح', data.message || 'تم حفظ العقد بنجاح.');
+      })
+      .catch(error => showAlert('error', 'تعذر الحفظ', error.message || 'تعذر حفظ العقد.'))
+      .finally(() => {
+        if (saveButton) saveButton.disabled = false;
+      });
+  });
+
+  contractFileInput?.addEventListener('change', function () {
+    const file = this.files && this.files.length ? this.files[0] : null;
+    showSelectedContractFile(file);
+  });
+
+  formElement.addEventListener('input', updateReview);
+  formElement.addEventListener('change', updateReview);
+  modalElement.addEventListener('hidden.bs.modal', () => resetModalForCreate());
+
+  nextButton?.addEventListener('click', function () {
+    if (currentStep === 1 && !validateStepOne()) return;
+    if (currentStep === 2 && !validateStepTwo()) return;
+    if (currentStep === 2) updateReview();
+    goToStep(currentStep + 1);
+  });
+  prevButton?.addEventListener('click', () => goToStep(currentStep - 1));
+  saveButton?.addEventListener('click', function () {
+    if (typeof formElement.requestSubmit === 'function') formElement.requestSubmit();
+    else formElement.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+  });
+  stepperElement?.addEventListener('shown.bs-stepper', function (event) {
+    if (typeof event.detail?.indexStep === 'number') {
+      currentStep = event.detail.indexStep + 1;
+      updateWizardActions();
+    }
+  });
+
+  resetModalForCreate();
+  updateWizardActions();
+});
+
+

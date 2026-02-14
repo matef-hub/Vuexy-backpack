@@ -9,12 +9,12 @@ return [
   'custom' => [
     'myLayout' => 'vertical', // Layout type: 'vertical' (default), 'horizontal'
     // 'primaryColor' => '#FF4646', // Set the primary color
-    'myTheme' => 'light', // Theme options: 'light' (default), 'dark', 'system'
+    'myTheme' => 'dark', // Theme options: 'light' (default), 'dark', 'system'
     'mySkins' => 'default', // Skin options: 'default', 'bordered'
     'hasSemiDark' => false, // Semi-dark mode: true/false (false by default)
-    'myRTLMode' => false, // Right-to-left (RTL) layout: true/false (false by default)
-    'hasCustomizer' => true, // Enable/Disable customizer: true (default) or false
-    'displayCustomizer' => true, // Display customizer UI: true (default) or false
+    'myRTLMode' => true, // Right-to-left (RTL) layout: true/false (false by default)
+    'hasCustomizer' => false, // Enable/Disable customizer: true (default) or false
+    'displayCustomizer' => false, // Display customizer UI: true (default) or false
     'contentLayout' => 'compact', // Layout size: 'compact' (container-xxl) or 'wide' (container-fluid)
     'navbarType' => 'sticky', // Navbar type: 'sticky', 'static', or 'hidden' (only for vertical layout)
     'footerFixed' => false, // Footer fixed position: true/false (false by default)

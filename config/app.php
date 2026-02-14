@@ -126,10 +126,6 @@ return [
     'aliases' => [
         // Other aliases...
         'Helper' => App\Helpers\Helpers::class,
-        'Schema' => Illuminate\Support\Facades\Schema::class,
-        'Artisan' => Illuminate\Support\Facades\Artisan::class,
-        'Auth' => Illuminate\Support\Facades\Auth::class,
-        'Route' => Illuminate\Support\Facades\Route::class,
     ],
 
 ];
