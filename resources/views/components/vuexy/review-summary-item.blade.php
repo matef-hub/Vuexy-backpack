@@ -3,7 +3,7 @@
     'icon' => 'ti ti-circle',
     'valueKey',
     'badgeClass' => 'bg-label-secondary',
-    'col' => 'col-12 col-md-6',
+    'col' => 'col-12 col-md-4',
     'valueClass' => '',
     'valueStyle' => '',
     'bodyAlign' => 'align-items-center',

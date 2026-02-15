@@ -1,0 +1,52 @@
+/*@font-face {
+    font-family: 'DIN Next LT Arabic';
+    src: url('DINNextLTArabic-Regular.woff2') format('woff2'),
+        url('DINNextLTArabic-Regular.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+  font-family: 'DIN Next LT Arabic';
+  src: url('DINNextLTArabic-Regular.eot?#iefix') format('embedded-opentype'),  url('DINNextLTArabic-Regular.woff') format('woff'), url('DINNextLTArabic-Regular.ttf')  format('truetype'), url('DINNextLTArabic-Regular.svg#DINNextLTArabic-Regular') format('svg');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+    font-family: 'DIN Next LT Arabic';
+    src: url('DINNextLTArabic-Light.woff2') format('woff2'),
+        url('DINNextLTArabic-Light.woff') format('woff');
+    font-weight: 300;
+    font-style: normal;
+    font-display: swap;
+}
+
+@font-face {
+    font-family: 'DIN Next LT Arabic';
+    src: url('DINNextLTArabic-Regular2.woff2') format('woff2'),
+        url('DINNextLTArabic-Regular2.woff') format('woff');
+    font-weight: normal;
+    font-style: normal;
+    font-display: swap;
+}
+*/
+ 
+ @font-face {
+    font-family: 'DIN Next LT Arabic';
+    src: url('DINNextLTArabic-Light.woff2') format('woff2'),
+        url('DINNextLTArabic-Light.woff') format('woff');
+    font-weight: 300;
+    font-style: normal;
+    font-display: swap;
+}
+ 
+@font-face {
+    font-family: 'DIN Next LT Arabic Ultra';
+    src: url('DINNextLTArabic-UltraLight.woff2') format('woff2'),
+        url('DINNextLTArabic-UltraLight.woff') format('woff');
+    font-weight: 200;
+    font-style: normal;
+    font-display: swap;
+}

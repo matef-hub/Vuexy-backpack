@@ -40,6 +40,7 @@
             white-space: nowrap;
             min-width: 170px;
             text-align: center;
+            font-size: 18px;
         }
 
         #rentalContractTabsContent .tab-pane {
@@ -223,7 +224,7 @@
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="rental-tab-contract-trigger" data-bs-toggle="tab"
                             data-bs-target="#rental-tab-contract" type="button" role="tab"
-                            aria-controls="rental-tab-contract" aria-selected="false">العقد والدفعات <span
+                            aria-controls="rental-tab-contract" aria-selected="false">التأمين والأجرة<span
                                 class="bs-stepper-circle">
                                 <i class="icon-base ti tabler-file-invoice icon-md"></i>
                             </span></button>
@@ -457,80 +458,110 @@
                     </div>
 
                     <!-- Tab: العقد والدفعات -->
-                    <div class="tab-pane fade" id="rental-tab-contract" role="tabpanel"
-                        aria-labelledby="rental-tab-contract-trigger">
-                        <div class="row g-6">
-                            <div class="col-md-4">
-                                <label class="form-label" for="status">الحالة</label>
-                                <div class="input-group">
-                                    <span class="input-group-text"><i
-                                            class="icon-base ti tabler-toggle-left"></i></span>
-                                    <select id="status" name="status" class="form-select" required>
-                                        <option value="draft">مسودة</option>
-                                        <option value="active">نشط</option>
-                                        <option value="expired">منتهي</option>
-                                        <option value="terminated">منتهي بالفسخ</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label" for="lease_start_date">تاريخ البداية</label>
-                                <div class="input-group">
-                                    <span class="input-group-text"><i
-                                            class="icon-base ti tabler-calendar"></i></span>
-                                    <input type="date" id="lease_start_date" name="lease_start_date"
-                                        class="form-control" required>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label" for="lease_end_date">تاريخ النهاية</label>
-                                <div class="input-group">
-                                    <span class="input-group-text"><i
-                                            class="icon-base ti tabler-calendar"></i></span>
-                                    <input type="date" id="lease_end_date" name="lease_end_date"
-                                        class="form-control" required>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label" for="lease_duration_months">مدة الإيجار (شهر)</label>
-                                <div class="input-group">
-                                    <span class="input-group-text"><i
-                                            class="icon-base ti tabler-clock"></i></span>
-                                    <input type="number" id="lease_duration_months" name="lease_duration_months"
-                                        class="form-control" min="1" step="1">
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label" for="monthly_rent">الإيجار الشهري</label>
-                                <div class="input-group">
-                                    <span class="input-group-text"><i class="icon-base ti tabler-cash"></i></span>
-                                    <input type="number" id="monthly_rent" name="monthly_rent"
-                                        class="form-control" min="0" step="0.01" required>
-                                </div>
-                            </div>
-                            <div class="col-md-4">
-                                <label class="form-label" for="security_deposit">التأمين</label>
-                                <div class="input-group">
-                                    <span class="input-group-text"><i
-                                            class="icon-base ti tabler-shield"></i></span>
-                                    <input type="number" id="security_deposit" name="security_deposit"
-                                        class="form-control" min="0" step="0.01">
-                                </div>
-                            </div>
-                            <div class="col-12">
-                                <div class="row align-items-start">
-                                    <label class="col-sm-3 col-form-label text-sm-end" for="notes">ملاحظات</label>
-                                    <div class="col-sm-9">
-                                        <div class="input-group">
-                                            <span class="input-group-text"><i
-                                                    class="icon-base ti tabler-notes"></i></span>
-                                            <textarea id="notes" name="notes" class="form-control" rows="1" placeholder="ملاحظات إضافية على العقد"></textarea>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+<div class="tab-pane fade" id="rental-tab-contract" role="tabpanel"
+    aria-labelledby="rental-tab-contract-trigger">
+
+    <div class="row g-4">
+
+        <!-- الحالة -->
+        <div class="col-12 col-md-4">
+            <div class="row align-items-center">
+                <label class="col-sm-4 col-form-label text-end" for="status">الحالة</label>
+                <div class="col-sm-8">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="ti tabler-toggle-left"></i></span>
+                        <select id="status" name="status" class="form-select">
+                            <option value="draft">مسودة</option>
+                            <option value="active">نشط</option>
+                            <option value="expired">منتهي</option>
+                            <option value="terminated">منتهي بالفسخ</option>
+                        </select>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- تاريخ البداية -->
+        <div class="col-12 col-md-4">
+            <div class="row align-items-center">
+                <label class="col-sm-4 col-form-label text-end" for="lease_start_date">تاريخ البداية</label>
+                <div class="col-sm-8">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="ti tabler-calendar"></i></span>
+                        <input type="date" id="lease_start_date" name="lease_start_date" class="form-control">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- تاريخ النهاية -->
+        <div class="col-12 col-md-4">
+            <div class="row align-items-center">
+                <label class="col-sm-4 col-form-label text-end" for="lease_end_date">تاريخ النهاية</label>
+                <div class="col-sm-8">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="ti tabler-calendar"></i></span>
+                        <input type="date" id="lease_end_date" name="lease_end_date" class="form-control">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- مدة الإيجار -->
+        <div class="col-12 col-md-4">
+            <div class="row align-items-center">
+                <label class="col-sm-4 col-form-label text-end" for="lease_duration_months">مدة الإيجار</label>
+                <div class="col-sm-8">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="ti tabler-clock"></i></span>
+                        <input type="number" id="lease_duration_months" name="lease_duration_months" class="form-control">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- الإيجار الشهري -->
+        <div class="col-12 col-md-4">
+            <div class="row align-items-center">
+                <label class="col-sm-4 col-form-label text-end" for="monthly_rent">الإيجار الشهري</label>
+                <div class="col-sm-8">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="ti tabler-cash"></i></span>
+                        <input type="number" id="monthly_rent" name="monthly_rent" class="form-control">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- التأمين -->
+        <div class="col-12 col-md-4">
+            <div class="row align-items-center">
+                <label class="col-sm-4 col-form-label text-end" for="security_deposit">التأمين</label>
+                <div class="col-sm-8">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="ti tabler-shield"></i></span>
+                        <input type="number" id="security_deposit" name="security_deposit" class="form-control">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ملاحظات -->
+        <div class="col-12">
+            <div class="row align-items-center">
+                <label class="col-sm-2 col-form-label text-end" for="notes">ملاحظات</label>
+                <div class="col-sm-10">
+                    <div class="input-group">
+                        <span class="input-group-text"><i class="ti tabler-notes"></i></span>
+                        <textarea id="notes" name="notes" class="form-control" rows="2"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+
 
                     <!-- Tab: المراجعة (unchanged, as it uses review-summary-item component) -->
                     <div class="tab-pane fade" id="rental-tab-review" role="tabpanel"
@@ -581,7 +612,7 @@
                             <x-vuexy.review-summary-item icon="ti ti-activity-heartbeat text-primary" label="الحالة"
                                 value-key="status" badge-class="bg-label-primary" value-class="review-status-badge" />
 
-                            <x-vuexy.review-summary-item col="col-12" icon="ti ti-notes text-secondary" label="ملاحظات"
+                            <x-vuexy.review-summary-item col="col-12 col-md-4" icon="ti ti-notes text-secondary" label="ملاحظات"
                                 value-key="notes" badge-class="bg-label-secondary" value-class="text-wrap text-end"
                                 value-style="max-width: 70%;" body-align="align-items-start" />
                         </div>
@@ -619,66 +650,66 @@
                 <div class="modal-body">
                     <div class="row g-3">
                         <div class="col-md-6">
-                            <label class="form-label text-body-secondary">رقم العقد</label>
+                            <p class="form-label text-body-secondary mb-1">رقم العقد</p>
                             <div class="fw-semibold" id="view_contract_number">-</div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label text-body-secondary">الحالة</label>
+                            <p class="form-label text-body-secondary mb-1">الحالة</p>
                             <div id="view_status">-</div>
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label text-body-secondary">المؤجر</label>
+                            <p class="form-label text-body-secondary mb-1">المؤجر</p>
                             <div class="fw-semibold" id="view_landlord_name">-</div>
                             <small class="text-body-secondary d-block" id="view_landlord_meta">-</small>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label text-body-secondary">المستأجر</label>
+                            <p class="form-label text-body-secondary mb-1">المستأجر</p>
                             <div class="fw-semibold" id="view_tenant_name">-</div>
                             <small class="text-body-secondary d-block" id="view_tenant_meta">-</small>
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label text-body-secondary">الوحدة</label>
+                            <p class="form-label text-body-secondary mb-1">الوحدة</p>
                             <div class="fw-semibold" id="view_unit_number">-</div>
                             <small class="text-body-secondary d-block" id="view_unit_area">-</small>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label text-body-secondary">عنوان الوحدة</label>
+                            <p class="form-label text-body-secondary mb-1">عنوان الوحدة</p>
                             <div class="fw-semibold" id="view_unit_address">-</div>
                         </div>
 
                         <div class="col-md-4">
-                            <label class="form-label text-body-secondary">بداية العقد</label>
+                            <p class="form-label text-body-secondary mb-1">بداية العقد</p>
                             <div class="fw-semibold" id="view_lease_start_date">-</div>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label text-body-secondary">نهاية العقد</label>
+                            <p class="form-label text-body-secondary mb-1">نهاية العقد</p>
                             <div class="fw-semibold" id="view_lease_end_date">-</div>
                         </div>
                         <div class="col-md-4">
-                            <label class="form-label text-body-secondary">المدة</label>
+                            <p class="form-label text-body-secondary mb-1">المدة</p>
                             <div class="fw-semibold" id="view_lease_duration_months">-</div>
                         </div>
 
                         <div class="col-md-6">
-                            <label class="form-label text-body-secondary">الإيجار الشهري</label>
+                            <p class="form-label text-body-secondary mb-1">الإيجار الشهري</p>
                             <div class="fw-semibold" id="view_monthly_rent">-</div>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label text-body-secondary">التأمين</label>
+                            <p class="form-label text-body-secondary mb-1">التأمين</p>
                             <div class="fw-semibold" id="view_security_deposit">-</div>
                         </div>
 
                         <div class="col-12">
-                            <label class="form-label text-body-secondary">مرفق العقد</label>
+                            <p class="form-label text-body-secondary mb-1">مرفق العقد</p>
                             <div id="view_contract_file" class="rental-contract-view-file">
                                 <span class="text-body-secondary">لا يوجد مرفق.</span>
                             </div>
                         </div>
 
                         <div class="col-12">
-                            <label class="form-label text-body-secondary">ملاحظات</label>
+                            <p class="form-label text-body-secondary mb-1">ملاحظات</p>
                             <div class="fw-semibold" id="view_notes">-</div>
                         </div>
                     </div>

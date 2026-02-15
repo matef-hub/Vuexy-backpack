@@ -5,3 +5,12 @@
 
 // $font-size-root: 14px !default;
 // $success: #00ff00 !default;
+
+// Prefix for :root CSS variables
+$prefix: bs- !default;
+
+// Typography
+$font-family-sans-serif: "DIN Next LT Arabic", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif !default;
+$font-family-monospace: monospace !default;
+$font-family-base: var(--#{$prefix}font-sans-serif) !default;
+$font-family-code: var(--#{$prefix}font-monospace) !default;
